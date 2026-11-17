@@ -1,0 +1,39 @@
+# Trage hier deine eigenen Daten ein:
+:local myNumber "+49XXXXXXXXXXX"       ; # Deine persönliche Handynummer für Benachrichtigungen
+:local secondNumber "DEINE_NUMMER"     ; # Die Nummer, auf die reagiert werden soll
+:local searchWord "DEIN_SUCHWORT"      ; # Das Wort, nach dem im SMS-Text gesucht werden soll
+:local replyText "DEINE_ANTWORT"       ; # Der Text, der als Antwort gesendet werden soll
+:local smsPort "lte1"                  ; # Dein RouterOS SMS-Interface (z. B. lte1 oder usb1)
+
+/tool sms inbox {
+    :local foundSMS false
+    
+    # Suche nach dem Suchwort im Posteingang
+    :foreach i in=[/tool sms inbox find where message~$searchWord] do={ 
+        :set foundSMS true
+        :local msgFrom [get $i phone]
+        :log info "SMS-Auto-Respond: Message with '$searchWord' found from $msgFrom"
+    } 
+    
+    :if ($foundSMS = true) do={ 
+        :do { 
+            # Antwort an Absender senden
+            /tool sms send port=$smsPort phone-number=$secondNumber message=$replyText
+            :log info "SMS-Auto-Respond: Sent reply to $secondNumber"
+            :delay 5s 
+            
+            # Benachrichtigung an deine Handynummer senden
+            /tool sms send port=$smsPort phone-number=$myNumber message=$replyText
+            :log info "SMS-Auto-Respond: Sent notification to $myNumber"
+            :delay 5s
+            
+            # Inbox von Nachrichten dieser Nummer bereinigen
+            :foreach msg in=[/tool sms inbox find where phone=$secondNumber] do={ 
+                /tool sms inbox remove $msg
+            }
+            :log info "SMS-Auto-Respond: Cleared inbox from $secondNumber messages."
+        } on-error={ 
+            :log error "SMS-Auto-Respond: Failed to send SMS or clear inbox!"
+        }
+    }
+}
